@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Newly Registered Domains – Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #f0efec;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --border: #e1e0d9;
+    --series-1: #2a78d6;
+    --series-1-soft: rgba(42,120,214,.12);
+    --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #111110;
+      --surface-1: #1a1a19;
+      --surface-2: #242422;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --border: #2c2c2a;
+      --series-1: #3987e5;
+      --series-1-soft: rgba(57,135,229,.18);
+      --critical: #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 48px; }
+  .num { font-variant-numeric: tabular-nums; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: -.01em; }
+  h2 { font-size: 14px; margin: 0; font-weight: 600; }
+  .sub { color: var(--text-secondary); font-size: 13px; }
+  a { color: var(--series-1); }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+  .tile .label { color: var(--text-secondary); font-size: 12px; }
+  .tile .value { font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin-top: 2px; }
+  .tile .note { color: var(--text-muted); font-size: 12px; }
+
+  .row2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .row-viewer { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+
+  /* segmented buttons / controls */
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--text-secondary); padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text-primary); font-weight: 600; }
+  .btn { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 7px; padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { background: var(--surface-2); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); background: var(--series-1); }
+  select, input[type="search"] { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 7px; padding: 6px 9px; font: inherit; font-size: 13px; }
+  input[type="search"] { width: 100%; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* chart */
+  #chart { position: relative; height: 240px; }
+  #chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  #chart .bar { cursor: pointer; }
+  .tip { position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; z-index: 10; }
+  .tip b { display: block; font-size: 13px; }
+
+  /* tables */
+  .scroll { overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 600; font-size: 12px; color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; background: var(--surface-1); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td.r, th.r { text-align: right; }
+  #files tr { cursor: pointer; }
+  #files tr:hover td { background: var(--surface-2); }
+  #files tr.active td { background: var(--series-1-soft); }
+  #files td a { text-decoration: none; font-size: 12px; }
+  .domain { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; word-break: break-all; }
+  .idx { color: var(--text-muted); width: 64px; }
+
+  /* TLD bar list */
+  .tld { display: grid; grid-template-columns: 70px 1fr 64px; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .tld:hover { background: var(--surface-2); }
+  .tld.active { background: var(--series-1-soft); font-weight: 600; }
+  .tld .track { height: 10px; }
+  .tld .fill { height: 10px; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .tld .cnt { text-align: right; color: var(--text-secondary); }
+
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .muted { color: var(--text-muted); }
+  .msg { padding: 28px; text-align: center; color: var(--text-secondary); }
+  .msg.err { color: var(--critical); }
+  .viewer-title { font-size: 18px; font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .row2, .row-viewer { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Newly Registered Domains</h1>
+      <div class="sub">Daily lists from whoisds.com, collected automatically</div>
+    </div>
+    <div class="sub" id="updated"></div>
+  </header>
+
+  <div id="app">
+    <div class="card msg">Loading…</div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(() => {
+  const PAGE_SIZE = 100;
+  const $ = (s, el = document) => el.querySelector(s);
+  const fmt = n => n.toLocaleString("en-US");
+  const kb = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+  const prettyDate = d => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null) continue;
+      if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    }
+    for (const k of kids) n.append(k);
+    return n;
+  };
+
+  let days = [];                     // [{date, domains, bytes}] ascending
+  let range = 30;
+  let cur = null;                    // selected date
+  const cache = new Map();           // date -> string[]
+  let list = [], filtered = [], page = 0, tldFilter = null, mode = "contains", query = "";
+
+  // ---------- boot ----------
+  fetch("data/index.json?t=" + Date.now())
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(idx => {
+      days = (idx.days || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+      if (idx.updated) $("#updated").textContent = "Last updated " + new Date(idx.updated).toLocaleString();
+      if (!days.length) return showMsg("No files stored yet. They'll appear after the first daily run.");
+      render();
+      const fromHash = decodeURIComponent(location.hash.slice(1));
+      openDay(days.some(d => d.date === fromHash) ? fromHash : days[days.length - 1].date);
+    })
+    .catch(e => showMsg("Couldn't load data/index.json (" + e.message + "). " +
+      "This page has to be opened from your GitHub Pages address, not as a file on your computer. " +
+      "If you just set it up, wait for the first daily run to finish.", true));
+
+  function showMsg(t, err) { $("#app").replaceChildren(el("div", { class: "card msg" + (err ? " err" : "") }, t)); }
+
+  // ---------- layout ----------
+  function render() {
+    const total = days.reduce((s, d) => s + d.domains, 0);
+    const latest = days[days.length - 1];
+    const tile = (label, value, note) => el("div", { class: "card tile" },
+      el("div", { class: "label" }, label), el("div", { class: "value num" }, value), el("div", { class: "note" }, note));
+
+    const app = $("#app");
+    app.replaceChildren(
+      el("div", { class: "tiles" },
+        tile("Days stored", fmt(days.length), days[0].date + " → " + latest.date),
+        tile("Domains stored", fmt(total), "across all days"),
+        tile("Latest day", fmt(latest.domains), prettyDate(latest.date)),
+        tile("Average per day", fmt(Math.round(total / days.length)), "domains")
+      ),
+      el("div", { class: "row2" },
+        el("section", { class: "card" },
+          el("div", { class: "card-head" },
+            el("h2", {}, "Domains per day"),
+            el("div", { class: "seg", id: "range" },
+              ...[["30", "30 days"], ["90", "90 days"], ["0", "All"]].map(([v, t]) =>
+                el("button", { "data-v": v, "aria-pressed": String(+v === range), onclick: () => { range = +v; updateRange(); drawChart(); } }, t)))
+          ),
+          el("div", { id: "chart" })
+        ),
+        el("section", { class: "card" },
+          el("div", { class: "card-head" }, el("h2", {}, "Stored files"), el("span", { class: "muted" }, fmt(days.length) + " files")),
+          el("div", { class: "scroll", style: "max-height:240px" },
+            el("table", {},
+              el("thead", {}, el("tr", {}, el("th", {}, "Date"), el("th", { class: "r" }, "Domains"), el("th", { class: "r" }, "Size"), el("th", { class: "r" }, ""))),
+              el("tbody", { id: "files" })))
+        )
+      ),
+      el("section", { class: "card", id: "viewer" },
+        el("div", { class: "card-head" },
+          el("div", {},
+            el("div", { class: "viewer-title", id: "vtitle" }, ""),
+            el("div", { class: "sub num", id: "vsub" }, "")),
+          el("div", { class: "controls" },
+            el("button", { class: "btn", id: "prev", title: "Previous day", onclick: () => step(-1) }, "‹ Prev"),
+            el("select", { id: "dayselect", "aria-label": "Choose a date", onchange: e => openDay(e.target.value) },
+              ...days.slice().reverse().map(d => el("option", { value: d.date }, d.date + "  (" + fmt(d.domains) + ")"))),
+            el("button", { class: "btn", id: "next", title: "Next day", onclick: () => step(1) }, "Next ›"))
+        ),
+        el("div", { class: "row-viewer" },
+          el("div", {},
+            el("div", { class: "card-head", style: "margin-bottom:6px" }, el("h2", {}, "Top extensions"), el("span", { class: "muted", style: "font-size:12px" }, "click to filter")),
+            el("div", { id: "tlds" })),
+          el("div", {},
+            el("div", { class: "controls", style: "margin-bottom:10px" },
+              el("select", { id: "mode", "aria-label": "Search type", onchange: e => { mode = e.target.value; applyFilter(); } },
+                el("option", { value: "contains" }, "Contains"),
+                el("option", { value: "starts" }, "Starts with"),
+                el("option", { value: "ends" }, "Ends with"),
+                el("option", { value: "regex" }, "Regex")),
+              el("div", { style: "flex:1;min-width:180px" },
+                el("input", { type: "search", id: "q", placeholder: "Search domains… e.g. bank, shop, crypto", oninput: debounce(e => { query = e.target.value.trim(); applyFilter(); }, 150) })),
+              el("button", { class: "btn", id: "copy", onclick: copyFiltered }, "Copy"),
+              el("button", { class: "btn primary", id: "dltxt", onclick: downloadFiltered }, "Download .txt"),
+              el("a", { class: "btn", id: "dlzip", href: "#", download: "" }, "Original .zip")),
+            el("div", { id: "results" }))
+        )
+      )
+    );
+
+    const tb = $("#files");
+    days.slice().reverse().forEach(d => tb.append(
+      el("tr", { "data-date": d.date, onclick: e => { if (e.target.tagName !== "A") openDay(d.date); } },
+        el("td", { class: "num" }, d.date),
+        el("td", { class: "r num" }, fmt(d.domains)),
+        el("td", { class: "r num muted" }, kb(d.bytes)),
+        el("td", { class: "r" }, el("a", { href: "data/zip/" + d.date + ".zip", download: "", title: "Download zip" }, "zip")))));
+
+    drawChart();
+    window.addEventListener("resize", debounce(drawChart, 100));
+  }
+
+  function updateRange() {
+    document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === range)));
+  }
+
+  // ---------- chart ----------
+  function drawChart() {
+    const box = $("#chart"); if (!box) return;
+    const data = range ? days.slice(-range) : days;
+    const W = box.clientWidth, H = box.clientHeight;
+    const m = { t: 10, r: 4, b: 24, l: 48 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const max = Math.max(...data.map(d => d.domains), 1);
+    const nice = niceMax(max), ticks = 4;
+    const slot = iw / data.length, bw = Math.max(2, Math.min(28, slot - 2));
+    const y = v => m.t + ih - (v / nice) * ih;
+    const ns = "http://www.w3.org/2000/svg";
+    const s = (tag, a) => { const n = document.createElementNS(ns, tag); for (const k in a) n.setAttribute(k, a[k]); return n; };
+    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Bar chart of domains per day" });
+
+    for (let i = 0; i <= ticks; i++) {
+      const v = nice / ticks * i, yy = y(v);
+      svg.append(s("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: "var(--grid)", "stroke-width": 1 }));
+      const t = s("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 11 });
+      t.textContent = v >= 1000 ? (v / 1000) + "k" : v; svg.append(t);
+    }
+    const every = Math.ceil(data.length / Math.max(1, Math.floor(iw / 56)));
+    const tip = $("#tip");
+    data.forEach((d, i) => {
+      const cx = m.l + slot * i + slot / 2, x = cx - bw / 2, top = y(d.domains), h = m.t + ih - top;
+      const r = Math.min(4, bw / 2, h);
+      const g = s("g", { class: "bar" });
+      g.append(s("rect", { x: m.l + slot * i, y: m.t, width: slot, height: ih, fill: "transparent" })); // big hit target
+      g.append(s("path", {
+        d: `M${x},${top + h} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${top + h} Z`,
+        fill: "var(--series-1)", opacity: cur && cur !== d.date ? 0.45 : 1
+      }));
+      g.addEventListener("mousemove", e => {
+        tip.innerHTML = "";
+        tip.append(el("b", {}, fmt(d.domains) + " domains"), el("span", { class: "muted" }, prettyDate(d.date)));
+        tip.style.display = "block";
+        tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + "px";
+        tip.style.top = (e.clientY - tip.offsetHeight - 10) + "px";
+      });
+      g.addEventListener("mouseleave", () => tip.style.display = "none");
+      g.addEventListener("click", () => openDay(d.date));
+      svg.append(g);
+      if (i % every === 0 || i === data.length - 1 && data.length < 8) {
+        const t = s("text", { x: cx, y: H - 6, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 11 });
+        t.textContent = d.date.slice(5); svg.append(t);
+      }
+    });
+    svg.append(s("line", { x1: m.l, x2: W - m.r, y1: m.t + ih, y2: m.t + ih, stroke: "var(--text-muted)", "stroke-width": 1 }));
+    box.replaceChildren(svg);
+  }
+  function niceMax(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const f of [1, 2, 2.5, 5, 10]) if (f * p >= v) return f * p; return v; }
+
+  // ---------- day viewer ----------
+  function step(dir) {
+    const i = days.findIndex(d => d.date === cur) + dir;
+    if (days[i]) openDay(days[i].date);
+  }
+
+  async function openDay(date) {
+    cur = date;
+    history.replaceState(null, "", "#" + date);
+    const info = days.find(d => d.date === date);
+    $("#vtitle").textContent = prettyDate(date);
+    $("#vsub").textContent = fmt(info.domains) + " domains · " + kb(info.bytes) + " zip";
+    $("#dayselect").value = date;
+    $("#dlzip").href = "data/zip/" + date + ".zip";
+    const i = days.indexOf(info);
+    $("#prev").disabled = i <= 0; $("#next").disabled = i >= days.length - 1;
+    document.querySelectorAll("#files tr").forEach(r => r.classList.toggle("active", r.dataset.date === date));
+    const row = $("#files tr.active"), sc = row?.closest(".scroll");
+    if (row && sc) {   // keep the selected file visible without scrolling the whole page
+      const head = sc.querySelector("thead").offsetHeight;
+      if (row.offsetTop - head < sc.scrollTop) sc.scrollTop = row.offsetTop - head;
+      else if (row.offsetTop + row.offsetHeight > sc.scrollTop + sc.clientHeight) sc.scrollTop = row.offsetTop + row.offsetHeight - sc.clientHeight;
+    }
+    drawChart();
+
+    tldFilter = null; page = 0;
+    $("#tlds").replaceChildren();
+    $("#results").replaceChildren(el("div", { class: "msg" }, "Loading " + date + "…"));
+    try {
+      if (!cache.has(date)) {
+        const r = await fetch("data/zip/" + date + ".zip");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const zip = await JSZip.loadAsync(await r.arrayBuffer());
+        const files = Object.values(zip.files).filter(f => !f.dir);
+        const text = (await Promise.all(files.map(f => f.async("string")))).join("\n");
+        cache.set(date, text.split(/\r?\n/).map(s => s.trim()).filter(Boolean));
+      }
+      if (cur !== date) return;  // user moved on while loading
+      list = cache.get(date);
+      drawTlds();
+      applyFilter();
+    } catch (e) {
+      $("#results").replaceChildren(el("div", { class: "msg err" }, "Couldn't open " + date + ".zip (" + e.message + ")"));
+    }
+  }
+
+  const tldOf = d => d.slice(d.lastIndexOf(".") + 1).toLowerCase();
+
+  function drawTlds() {
+    const counts = new Map();
+    for (const d of list) { const t = tldOf(d); counts.set(t, (counts.get(t) || 0) + 1); }
+    const sorted = [...counts].sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 12), max = top[0]?.[1] || 1;
+    const box = $("#tlds");
+    const row = (key, label, n, width) => el("div", {
+        class: "tld" + (tldFilter === key ? " active" : ""), role: "button", tabindex: "0",
+        title: label + ": " + fmt(n),
+        onclick: () => { tldFilter = tldFilter === key || key === null ? null : key; page = 0; drawTlds(); applyFilter(); }
+      },
+      el("span", { class: "domain" }, label),
+      el("div", { class: "track" }, width == null ? "" : el("div", { class: "fill", style: "width:" + width + "%" })),
+      el("span", { class: "cnt num" }, fmt(n)));
+    box.replaceChildren(
+      row(null, "All", list.length, null),
+      ...top.map(([t, n]) => row(t, "." + t, n, n / max * 100)));
+    if (sorted.length > 12) box.append(el("div", { class: "muted", style: "font-size:12px;padding:6px" }, "+ " + (sorted.length - 12) + " more extensions"));
+  }
+
+  function applyFilter() {
+    let test = () => true;
+    const q = query.toLowerCase();
+    $("#q").style.borderColor = "";
+    if (q) {
+      if (mode === "regex") {
+        try { const re = new RegExp(query, "i"); test = d => re.test(d); }
+        catch { $("#q").style.borderColor = "var(--critical)"; test = () => false; }
+      } else if (mode === "starts") test = d => d.toLowerCase().startsWith(q);
+      else if (mode === "ends") test = d => d.toLowerCase().endsWith(q);
+      else test = d => d.toLowerCase().includes(q);
+    }
+    filtered = list.filter(d => (!tldFilter || tldOf(d) === tldFilter) && test(d));
+    page = Math.min(page, Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1));
+    drawResults();
+  }
+
+  function drawResults() {
+    const box = $("#results");
+    const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const start = page * PAGE_SIZE, slice = filtered.slice(start, start + PAGE_SIZE);
+    $("#dltxt").disabled = $("#copy").disabled = !filtered.length;
+    if (!filtered.length) return box.replaceChildren(el("div", { class: "msg" }, "No domains match."));
+    const tbody = el("tbody");
+    slice.forEach((d, i) => tbody.append(el("tr", {},
+      el("td", { class: "idx num" }, fmt(start + i + 1)),
+      el("td", { class: "domain" }, d),
+      el("td", { class: "muted" }, "." + tldOf(d)))));
+    box.replaceChildren(
+      el("div", { class: "scroll", style: "max-height:560px" },
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "#"), el("th", {}, "Domain"), el("th", {}, "Extension"))), tbody)),
+      el("div", { class: "pager" },
+        el("span", { class: "sub num" }, "Showing " + fmt(start + 1) + "–" + fmt(start + slice.length) + " of " + fmt(filtered.length) +
+          (filtered.length !== list.length ? " (filtered from " + fmt(list.length) + ")" : "")),
+        el("div", { class: "controls" },
+          el("button", { class: "btn", disabled: page === 0 ? "" : null, onclick: () => { page--; drawResults(); } }, "‹"),
+          el("span", { class: "sub num" }, "Page " + fmt(page + 1) + " of " + fmt(pages)),
+          el("button", { class: "btn", disabled: page >= pages - 1 ? "" : null, onclick: () => { page++; drawResults(); } }, "›"))));
+  }
+
+  function downloadFiltered() {
+    const blob = new Blob([filtered.join("\n") + "\n"], { type: "text/plain" });
+    const suffix = (tldFilter ? "_" + tldFilter : "") + (query ? "_" + query.replace(/[^a-z0-9]+/gi, "-").slice(0, 30) : "");
+    const a = el("a", { href: URL.createObjectURL(blob), download: cur + suffix + ".txt" });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  async function copyFiltered() {
+    const b = $("#copy");
+    try { await navigator.clipboard.writeText(filtered.join("\n")); b.textContent = "Copied " + fmt(filtered.length); }
+    catch { b.textContent = "Copy failed"; }
+    setTimeout(() => b.textContent = "Copy", 1800);
+  }
+
+  function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+})();
+</script>
+</body>
+</html>
