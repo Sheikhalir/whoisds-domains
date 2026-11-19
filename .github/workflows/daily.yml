@@ -1,0 +1,68 @@
+name: Daily WhoisDS download
+
+on:
+  schedule:
+    # Twice a day (times are UTC): 09:30 and 21:30 Pakistan time.
+    # The script skips days it already has, so running twice is harmless.
+    - cron: "30 4 * * *"
+    - cron: "30 16 * * *"
+  workflow_dispatch:   # adds a "Run workflow" button to run it by hand
+
+permissions:
+  contents: write      # needed to save files and create releases
+
+concurrency:
+  group: whoisds
+  cancel-in-progress: false
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download new files
+        run: |
+          mkdir -p data/zip
+          ls data/zip > /tmp/before.txt
+          python whoisds_downloader.py -o data --no-extract || echo "DOWNLOAD_FAILED=1" >> "$GITHUB_ENV"
+          ls data/zip > /tmp/after.txt
+          comm -13 /tmp/before.txt /tmp/after.txt > /tmp/new.txt
+          echo "New files:"; cat /tmp/new.txt
+          python build_index.py data   # list of days for the dashboard
+
+      - name: Save files to the repository
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "Nothing to save"; exit 0; fi
+          git commit -m "WhoisDS update $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push
+
+      - name: Publish each new day as a Release (zip + txt)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/rel
+          while read -r f; do
+            [ -z "$f" ] && continue
+            d="${f%.zip}"
+            gh release view "$d" >/dev/null 2>&1 && continue
+            unzip -p "data/zip/$f" > "/tmp/rel/$d.txt"
+            n=$(grep -c . "/tmp/rel/$d.txt" || true)
+            gh release create "$d" "data/zip/$f" "/tmp/rel/$d.txt" \
+              --title "Newly registered domains - $d" \
+              --notes "$n domains registered on $d (source: whoisds.com)"
+          done < /tmp/new.txt
+
+      - name: Report failure
+        if: env.DOWNLOAD_FAILED == '1'
+        run: |
+          echo "::error::One or more downloads failed - see the log above or data/download_log.txt"
+          exit 1
