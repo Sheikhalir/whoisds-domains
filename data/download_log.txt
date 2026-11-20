@@ -16,3 +16,12 @@
 2026-11-19 23:10:08  INFO    2026-11-15  already downloaded - skipping
 2026-11-19 23:10:08  INFO    2026-11-14  already downloaded - skipping
 2026-11-19 23:10:08  INFO    === Done: 1 new, 5 already had, 0 failed ===
+2026-11-20 00:22:58  INFO    === Run started - saving to /home/runner/work/whoisds-domains/whoisds-domains/data ===
+2026-11-20 00:22:59  INFO    Website lists: 2026-11-16, 2026-11-17, 2026-11-18, 2026-11-19
+2026-11-20 00:23:00  INFO    2026-11-20  not available yet
+2026-11-20 00:23:00  INFO    2026-11-19  already downloaded - skipping
+2026-11-20 00:23:00  INFO    2026-11-18  already downloaded - skipping
+2026-11-20 00:23:00  INFO    2026-11-17  already downloaded - skipping
+2026-11-20 00:23:00  INFO    2026-11-16  already downloaded - skipping
+2026-11-20 00:23:00  INFO    2026-11-15  already downloaded - skipping
+2026-11-20 00:23:00  INFO    === Done: 0 new, 5 already had, 0 failed ===
