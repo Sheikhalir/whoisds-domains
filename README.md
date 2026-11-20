@@ -13,7 +13,8 @@ and export them for niche research or outreach. Your computer doesn't need to be
 |---|---|
 | `whoisds_downloader.py` | downloads the daily files |
 | `build_index.py` | sorts domains into niches and updates the dashboard data |
-| `niches.json` | the niche categories, keywords and locations (you can edit it) |
+| `niches.json` | the built-in niche categories, keywords and locations |
+| `seeds.json` | **your own seed keywords** (edited from the dashboard) |
 | `index.html` | the dashboard |
 | `.nojekyll` | tells GitHub Pages to serve the files as they are |
 | `daily.yml` | the daily schedule (goes in `.github/workflows/`) |
@@ -25,7 +26,7 @@ and export them for niche research or outreach. Your computer doesn't need to be
    choose **Public**, tick **Add a README file**, and click **Create repository**.
    (On a free account the dashboard only works for Public repos. See the note below.)
 3. **Upload the files:** click **Add file → Upload files**, drag in
-   `whoisds_downloader.py`, `build_index.py`, `niches.json`, `index.html` and `.nojekyll`, then click **Commit changes**.
+   `whoisds_downloader.py`, `build_index.py`, `niches.json`, `seeds.json`, `index.html` and `.nojekyll`, then click **Commit changes**.
    *If you can't see `.nojekyll`:* click **Add file → Create new file** instead, name it `.nojekyll`,
    leave it empty, and commit.
 4. **Add the schedule:** click **Add file → Create new file**. In the name box, type exactly
@@ -46,21 +47,61 @@ and the dashboard updates itself after each run.
 
 ### Niche Finder tab (opens first)
 
-1. **Pick a date range:** Latest day, 7 days, 30 days or All.
-2. **Pick niches** on the left. Click one or more (e.g. *Roofing* + *Gutters*). The counts show how many
-   new domains each niche got, which is useful for spotting busy or growing niches.
-3. **Narrow it down:**
-   - **Extension:** `.com only` is usually best for real local businesses
-   - **Location:** a city or state found in the name (e.g. *Dallas, TX*, *Florida*), or "Any city/state"
-   - **Search within results:** e.g. `emergency`, `24`, `pros`
-4. **Use the results:** the chart shows how many matches came in each day. The table shows each domain with
-   the matched keyword highlighted, its niche, its location, and a **WHOIS** link to look up the owner.
-   - **Export CSV** gives you date, domain, extension, niche, keyword and location. It opens in Excel or Google Sheets.
-   - **Copy domains** puts the list on your clipboard.
-5. **Your own keywords:** type e.g. `chimney, stucco, siding` under *Add your own keywords*. The dashboard searches every
-   domain in the range (up to 60 days) and saves your keyword groups in your browser for next time.
+1. **Pick a date range** (Latest day, 7 days, 30 days, All), **or pick a single day** from the dropdown.
+   Clicking a bar in the chart also opens that day.
+2. **Pick niches** on the left. Click one or more (e.g. *Roofing* + *Gutters*). The counts show how many new
+   domains each niche got, which is useful for spotting busy niches.
+3. **Narrow it down:** Extension (`.com only` is usually best for real businesses), Location (city or state
+   found in the name), and *Search within results* (e.g. `emergency`, `24`, `pros`).
+4. **Choose a layout:** **Table** is one list. **By niche** gives each niche its own section, so with a single
+   day picked you get that day's domains separated by niche.
+5. **Export:** **Export CSV** (one file), **Export by niche (.zip)** (one CSV per niche plus `_all.csv`), or **Copy**.
 
-Your filters are remembered when you come back.
+### Seed keywords (searched automatically every day)
+
+Under **My seed keywords** (top of the niche list), click **+ Add** or **✎ Edit** and type one group per line:
+
+```
+Chimney: chimney, chimneysweep, flue
+Stucco: stucco, plaster
+Epoxy flooring: epoxy, garagefloor
+siding
+Tree jobs: tree, -street, -treehouse
+```
+
+- `Name: word1, word2`: a named group. A single word on its own is also fine.
+- `-word`: leave out names containing that word (e.g. *street* contains *tree*).
+- Spaces and dashes are ignored, so `tree service` finds `treeservice.com` and `tree-service.com`.
+
+Each group becomes its own niche, marked **seed**. When you save and GitHub is connected (see below), the seeds
+are saved into your repository. The daily job then searches **every stored day** within a few minutes, and
+**every new day automatically** after that. Until it has run, the dashboard searches in your browser and shows
+a **new** badge. Each day's Release also gets a `..._niches.csv` with all matches.
+
+### Favorites ★ and Discard ✕
+
+Every domain has two buttons:
+- **☆ / ★ Favorite** saves it to the **★ Favorites** list, which keeps all dates and has its own Export CSV.
+- **✕ Discard** hides it from all results and counts. An **Undo** button appears for a few seconds.
+  **Discard this page** hides every domain on the current page, which is handy for clearing junk quickly.
+- The **Discarded** list lets you **Restore** any domain, or everything.
+
+### Connect GitHub (recommended, one time)
+
+Without connecting, seeds, favorites and discards are saved **in this browser only**, and seeds are searched in
+the browser (up to 60 days). Connecting lets the dashboard save them into your repository, so seeds run
+automatically every day and your lists are the same on every device.
+
+1. On the dashboard, click **Connect GitHub** (top right).
+2. Click **Open GitHub's token page** and create a *fine-grained token*:
+   - **Repository access** → *Only select repositories* → your repository
+   - **Permissions → Repository permissions → Contents** → *Read and write*
+   - **Generate token** and copy it
+3. Paste it in the dashboard and click **Connect**. Anything you saved in the browser before is uploaded.
+
+The token is stored only in your browser and only lets the dashboard change files in that one repository.
+Don't connect on a shared computer. Tokens expire (you choose when), so reconnect with a new one when that happens.
+Favorites and discards are saved in `user/lists.json` in your repository.
 
 ### Daily Files tab
 
@@ -72,9 +113,9 @@ Your filters are remembered when you come back.
   - **Download .txt** saves exactly what you've filtered, and **Copy** puts it on your clipboard
 - You can bookmark or share a specific day: `.../#2026-11-18`
 
-## Changing the niches
+## Changing the built-in niches
 
-Open `niches.json` on GitHub and click the pencil icon. Each niche has:
+For your own keywords, use **seed keywords** (above). To change the built-in niches, open `niches.json` on GitHub and click the pencil icon. Each niche has:
 - `keywords`: a domain matches if its name contains any of them, e.g. `"roofing", "roofer"`
 - `exclude`: words that cause false matches, e.g. Tree Service excludes `street` (it contains *tree*)
 

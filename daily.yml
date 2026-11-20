@@ -8,7 +8,7 @@ on:
     - cron: "30 16 * * *"
   workflow_dispatch:   # adds a "Run workflow" button to run it by hand
   push:
-    paths: ["niches.json"]   # re-sort all days when you edit the niches
+    paths: ["niches.json", "seeds.json"]   # re-sort all days when niches or your seed keywords change
 
 permissions:
   contents: write      # needed to save files and create releases
@@ -36,7 +36,7 @@ jobs:
           ls data/zip > /tmp/after.txt
           comm -13 /tmp/before.txt /tmp/after.txt > /tmp/new.txt
           echo "New files:"; cat /tmp/new.txt
-          python build_index.py data niches.json   # day list + niche sorting for the dashboard
+          python build_index.py data niches.json seeds.json   # day list + niche sorting for the dashboard
 
       - name: Save files to the repository
         run: |
@@ -45,7 +45,8 @@ jobs:
           git add data
           if git diff --cached --quiet; then echo "Nothing to save"; exit 0; fi
           git commit -m "WhoisDS update $(date -u +'%Y-%m-%d %H:%M') UTC"
-          git push
+          # the dashboard may have saved favorites/seeds meanwhile - put our commit on top
+          for i in 1 2 3; do git pull --rebase --autostash && git push && break; sleep 5; done
 
       - name: Publish each new day as a Release (zip + txt)
         env:
@@ -58,7 +59,8 @@ jobs:
             gh release view "$d" >/dev/null 2>&1 && continue
             unzip -p "data/zip/$f" > "/tmp/rel/$d.txt"
             n=$(grep -c . "/tmp/rel/$d.txt" || true)
-            gh release create "$d" "data/zip/$f" "/tmp/rel/$d.txt" \
+            python build_index.py --csv "$d" "/tmp/rel/${d}_niches.csv" || true
+            gh release create "$d" "data/zip/$f" "/tmp/rel/$d.txt" /tmp/rel/${d}_niches.csv \
               --title "Newly registered domains - $d" \
               --notes "$n domains registered on $d (source: whoisds.com)"
           done < /tmp/new.txt
