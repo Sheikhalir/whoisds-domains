@@ -1,6 +1,6 @@
 {
- "updated": "2026-11-20T00:37:52Z",
- "niche_config": "4e9217e64ec3",
+ "updated": "2026-11-20T00:52:15Z",
+ "niche_config": "fac60d35b4f8",
  "niche_ids": [
   "roofing",
   "gutters",
@@ -39,15 +39,18 @@
   "childcare",
   "seniorcare",
   "marketing",
+  "seed-garden",
   "generic"
  ],
- "seed_sigs": {},
+ "seed_sigs": {
+  "seed-garden": "garden|"
+ },
  "days": [
   {
    "date": "2026-11-14",
    "domains": 70000,
    "bytes": 590649,
-   "matched": 2946,
+   "matched": 2993,
    "niches": {
     "fitness": 85,
     "hvac": 34,
@@ -73,6 +76,7 @@
     "concrete": 28,
     "restoration": 28,
     "landscaping": 30,
+    "seed-garden": 50,
     "remodeling": 140,
     "flooring": 46,
     "plumbing": 58,
@@ -93,7 +97,7 @@
    "date": "2026-11-15",
    "domains": 70000,
    "bytes": 572503,
-   "matched": 2678,
+   "matched": 2708,
    "niches": {
     "generic": 695,
     "concrete": 23,
@@ -113,6 +117,7 @@
     "events": 62,
     "painting": 35,
     "beauty": 169,
+    "seed-garden": 31,
     "pest": 16,
     "fitness": 96,
     "locksmith": 4,
@@ -139,7 +144,7 @@
    "date": "2026-11-16",
    "domains": 70000,
    "bytes": 570609,
-   "matched": 2750,
+   "matched": 2781,
    "niches": {
     "beauty": 212,
     "health": 201,
@@ -148,6 +153,7 @@
     "garagedoor": 19,
     "generic": 678,
     "food": 209,
+    "seed-garden": 33,
     "marketing": 223,
     "pool": 27,
     "remodeling": 126,
@@ -185,13 +191,13 @@
    "date": "2026-11-17",
    "domains": 70000,
    "bytes": 574043,
-   "matched": 2653,
+   "matched": 2673,
    "niches": {
     "marketing": 214,
     "finance": 98,
     "events": 74,
     "cleaning": 101,
-    "generic": 631,
+    "generic": 629,
     "beauty": 194,
     "fitness": 95,
     "moving": 37,
@@ -212,6 +218,7 @@
     "appliance": 9,
     "concrete": 24,
     "remodeling": 111,
+    "seed-garden": 25,
     "electrical": 10,
     "pest": 26,
     "restoration": 25,
@@ -231,7 +238,7 @@
    "date": "2026-11-18",
    "domains": 70000,
    "bytes": 550802,
-   "matched": 2755,
+   "matched": 2790,
    "niches": {
     "health": 201,
     "food": 198,
@@ -241,6 +248,7 @@
     "appliance": 30,
     "beauty": 194,
     "events": 69,
+    "seed-garden": 37,
     "plumbing": 50,
     "finance": 114,
     "landscaping": 44,
@@ -277,12 +285,13 @@
    "date": "2026-11-19",
    "domains": 70000,
    "bytes": 390913,
-   "matched": 1293,
+   "matched": 1333,
    "niches": {
     "finance": 96,
     "auto": 22,
-    "generic": 377,
+    "generic": 376,
     "food": 111,
+    "seed-garden": 42,
     "marketing": 77,
     "fencing": 13,
     "painting": 8,
