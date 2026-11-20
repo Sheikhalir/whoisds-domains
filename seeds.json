@@ -2,10 +2,10 @@
   "_help": "Your seed keywords, edited from the dashboard. Each seed is its own niche and is searched in every new day automatically.",
   "seeds": [
     {
-      "id": "seed-garden",
-      "name": "garden",
+      "id": "seed-calculator",
+      "name": "calculator",
       "keywords": [
-        "garden"
+        "calculator"
       ],
       "exclude": []
     }
