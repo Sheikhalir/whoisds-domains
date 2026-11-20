@@ -1,4 +1,13 @@
 {
-  "_help": "Your seed keywords. Easiest to edit from the dashboard (Niche Finder -> My seed keywords -> Edit). Each seed becomes its own niche, searched in every new day automatically.",
-  "seeds": []
+  "_help": "Your seed keywords, edited from the dashboard. Each seed is its own niche and is searched in every new day automatically.",
+  "seeds": [
+    {
+      "id": "seed-garden",
+      "name": "garden",
+      "keywords": [
+        "garden"
+      ],
+      "exclude": []
+    }
+  ]
 }
