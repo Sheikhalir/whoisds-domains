@@ -7,6 +7,8 @@ on:
     - cron: "30 4 * * *"
     - cron: "30 16 * * *"
   workflow_dispatch:   # adds a "Run workflow" button to run it by hand
+  push:
+    paths: ["niches.json"]   # re-sort all days when you edit the niches
 
 permissions:
   contents: write      # needed to save files and create releases
@@ -18,7 +20,7 @@ concurrency:
 jobs:
   download:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +36,7 @@ jobs:
           ls data/zip > /tmp/after.txt
           comm -13 /tmp/before.txt /tmp/after.txt > /tmp/new.txt
           echo "New files:"; cat /tmp/new.txt
-          python build_index.py data   # list of days for the dashboard
+          python build_index.py data niches.json   # day list + niche sorting for the dashboard
 
       - name: Save files to the repository
         run: |
