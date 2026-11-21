@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1: feature access per user
+- **Admin → Users → Access**: allow, lock (🔒 tab with a message) or hide Niche Finder, Leads, Research and Daily Files for each user.
+  Also in Edit, Approve, Invites (applied at sign-up) and a default for new requests in Settings. Users table and CSV show each user's access.
+- Enforced by the database (`has_feature()` in RLS policies, storage and functions), not just hidden in the page. Admins always have everything.
+- Faster lead search: access checks in policies are evaluated once per query.
+- Upgrade: re-run `supabase/schema.sql` (with your owner email) in the SQL Editor, then upload the changed files.
+
 ## 3.0: private multi-user version
 - **Login portal** on Supabase Auth: sign in, create account / request access, waiting-for-approval, disabled / expired screens,
   temporary password → forced change, change name / password.
