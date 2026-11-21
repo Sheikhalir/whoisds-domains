@@ -13,6 +13,36 @@ const ACTIONS = {
 const TAB_NAMES = { niche: "Niche Finder", leads: "Leads", research: "Research", daily: "Daily Files", admin: "Admin", "leads:leads": "Leads › All leads",
   "leads:pipeline": "Leads › Pipeline", "leads:followups": "Leads › Follow-ups", "leads:gaps": "Leads › Gap Finder", "research:momentum": "Research › Momentum", "research:geo": "Research › Geography" };
 const statusOf = u => u.status === "active" && u.is_expired ? "expired" : u.status;
+
+// ---------- feature access (per user; enforced by the database too) ----------
+const FEATURES = [["niche", "Niche Finder"], ["leads", "Leads"], ["research", "Research"], ["daily", "Daily Files"]];
+const ACCESS = [["on", "Allowed"], ["locked", "Locked: tab shows a lock"], ["hidden", "Hidden: no tab"]];
+const cleanFeatures = f => Object.fromEntries(Object.entries(f || {}).filter(([k, v]) => FEATURES.some(x => x[0] === k) && (v === "locked" || v === "hidden")));
+// per-feature dropdowns; value() returns {feature: "locked"|"hidden"} for restricted features only
+function featureEditor(current, { disabled = false, note } = {}) {
+  const sels = FEATURES.map(([id, label]) => {
+    const sel = el("select", { disabled, "data-feature": id }, ...ACCESS.map(([v, t]) => el("option", { value: v, selected: (current?.[id] || "on") === v }, t)));
+    return el("label", { class: "field" }, label, sel);
+  });
+  const all = v => () => sels.forEach(l => { const s = l.querySelector("select"); if (!s.disabled) s.value = v; });
+  const node = el("div", { class: "field full" }, "Feature access",
+    note ? el("div", { class: "hint", style: { margin: 0 } }, note) : null,
+    el("div", { class: "form-grid" }, ...sels),
+    disabled ? null : el("div", { class: "controls" },
+      el("button", { type: "button", class: "btn small", onclick: all("on") }, "Allow all"),
+      el("button", { type: "button", class: "btn small", onclick: all("locked") }, "Lock all"),
+      el("button", { type: "button", class: "btn small", onclick: all("hidden") }, "Hide all")));
+  return { node, value: () => cleanFeatures(Object.fromEntries(sels.map(l => { const s = l.querySelector("select"); return [s.dataset.feature, s.value]; }))) };
+}
+function accessBadges(features, isAdmin) {
+  if (isAdmin) return el("span", { class: "muted" }, "Full (admin)");
+  const f = cleanFeatures(features), keys = FEATURES.filter(([id]) => f[id]);
+  if (!keys.length) return el("span", { class: "muted" }, "All features");
+  return el("div", { class: "access-badges" }, ...keys.map(([id, label]) =>
+    el("span", { class: "badge " + (f[id] === "hidden" ? "bad" : "warn"), title: f[id] === "hidden" ? "Hidden: no tab" : "Locked: tab shows a lock" },
+      (f[id] === "hidden" ? "Hidden: " : "🔒 ") + label)));
+}
+const accessText = (features, isAdmin) => isAdmin ? "full" : FEATURES.filter(([id]) => cleanFeatures(features)[id]).map(([id, l]) => l + " " + cleanFeatures(features)[id]).join("; ") || "all";
 const STATUS_BADGE = { active: ["Active", "ok"], pending: ["Pending", "warn"], disabled: ["Disabled", "bad"], expired: ["Expired", "bad"] };
 
 export function mount(host, ctx) {
@@ -111,6 +141,7 @@ export function mount(host, ctx) {
           el("div", { class: "muted", style: { fontSize: "12px" } }, u.email), u.notes ? el("div", { class: "hint", style: { margin: 0 } }, u.notes.slice(0, 80)) : null),
         el("td", {}, u.role === "admin" ? el("span", { class: "badge blue" }, "Admin") : "User"),
         el("td", {}, el("span", { class: "badge " + cls }, lbl)),
+        el("td", {}, accessBadges(u.features, u.role === "admin")),
         el("td", { class: "num" }, u.expires_at ? el("span", { class: u.is_expired ? "delta down" : "" }, shortDate(u.expires_at)) : el("span", { class: "muted" }, "never")),
         el("td", { class: "muted" }, ago(u.last_seen_at)),
         el("td", { class: "r num" }, fmt(u.logins_30d)), el("td", { class: "r num" }, fmt(u.events_30d)), el("td", { class: "r num" }, fmt(u.exports_30d)),
@@ -120,6 +151,7 @@ export function mount(host, ctx) {
           u.status === "pending" ? el("button", { class: "btn small primary", onclick: () => approve(u) }, "Approve") : null,
           u.status === "pending" ? el("button", { class: "btn small", onclick: () => update(u, { status: "disabled" }, "Request declined") }, "Decline") : null,
           el("button", { class: "btn small", onclick: () => editUser(u) }, "Edit"),
+          u.role !== "admin" ? el("button", { class: "btn small", onclick: () => editAccess(u) }, "Access") : null,
           !me && u.status === "active" ? el("button", { class: "btn small", onclick: () => update(u, { status: "disabled" }, "Disabled " + u.email) }, "Disable") : null,
           !me && u.status === "disabled" ? el("button", { class: "btn small", onclick: () => update(u, { status: "active" }, "Enabled " + u.email) }, "Enable") : null,
           el("button", { class: "btn small", onclick: () => setPassword(u) }, "Password"),
@@ -133,11 +165,11 @@ export function mount(host, ctx) {
         el("div", { style: { flex: 1, minWidth: "200px" } }, el("input", { type: "search", placeholder: "Search name, email, notes…", value: S.uq,
           oninput: e => { S.uq = e.target.value.trim().toLowerCase(); usersView(body); $("input[type=search]", body).focus(); } })),
         el("button", { class: "btn primary", onclick: () => { S.sub = "invites"; save(); build(); } }, "+ Invite users"),
-        el("button", { class: "btn", onclick: () => download("users_" + isoDay() + ".csv", csv(["email", "name", "role", "status", "access_until", "last_seen", "logins_30d", "events_30d", "exports_30d", "favorites", "pipeline", "seeds", "joined", "notes"],
-          users.map(u => [u.email, u.full_name, u.role, statusOf(u), u.expires_at, u.last_seen_at, u.logins_30d, u.events_30d, u.exports_30d, u.favorites, u.pipeline, u.seeds, u.created_at, u.notes])), "text/csv") }, "Export CSV")),
+        el("button", { class: "btn", onclick: () => download("users_" + isoDay() + ".csv", csv(["email", "name", "role", "status", "features", "access_until", "last_seen", "logins_30d", "events_30d", "exports_30d", "favorites", "pipeline", "seeds", "joined", "notes"],
+          users.map(u => [u.email, u.full_name, u.role, statusOf(u), accessText(u.features, u.role === "admin"), u.expires_at, u.last_seen_at, u.logins_30d, u.events_30d, u.exports_30d, u.favorites, u.pipeline, u.seeds, u.created_at, u.notes])), "text/csv") }, "Export CSV")),
       el("section", { class: "card" }, list.length ? el("div", { class: "tbl-wrap" }, el("table", { class: "data" },
-        el("thead", {}, el("tr", {}, ...["User", "Role", "Status", "Access until", "Last seen", "Sign-ins 30d", "Actions 30d", "Exports 30d", "★", "Pipeline", "Seeds", "Joined", ""].map((h, i) =>
-          el("th", { class: i >= 5 && i <= 10 ? "r" : "" }, h)))), tb)) : el("div", { class: "empty" }, "No users match.")));
+        el("thead", {}, el("tr", {}, ...["User", "Role", "Status", "Features", "Access until", "Last seen", "Sign-ins 30d", "Actions 30d", "Exports 30d", "★", "Pipeline", "Seeds", "Joined", ""].map((h, i) =>
+          el("th", { class: i >= 6 && i <= 11 ? "r" : "" }, h)))), tb)) : el("div", { class: "empty" }, "No users match.")));
   }
   async function update(u, patch, msg) {
     try { await rpc("admin_update_user", { p_id: u.id, p: patch }); toast(msg || "Saved"); await build(); } catch (e) { toast(errText(e)); }
@@ -147,15 +179,16 @@ export function mount(host, ctx) {
       const len = el("select", {}, el("option", { value: "" }, "Default from Settings"), el("option", { value: "never" }, "Never expires"),
         ...[7, 30, 90, 180, 365].map(n => el("option", { value: n }, n + " days")));
       const role = el("select", {}, el("option", { value: "user" }, "User"), el("option", { value: "admin" }, "Admin"));
+      const fe = featureEditor(u.features, { note: "Pre-filled from the default in Settings. Admins always get every feature." });
       return el("form", { class: "dlg", onsubmit: async e => {
           e.preventDefault();
-          const p = { status: "active", role: role.value };
+          const p = { status: "active", role: role.value, features: fe.value() };
           if (len.value === "never") p.expires_at = null; else if (len.value) p.expires_at = new Date(Date.now() + len.value * 86400e3).toISOString();
           close(); await update(u, p, "Approved " + u.email);
         } },
         el("h2", {}, "Approve " + u.email),
         el("p", { class: "sub" }, (u.full_name ? u.full_name + " · " : "") + "requested access " + ago(u.created_at) + "."),
-        el("div", { class: "form-grid" }, el("label", { class: "field" }, "Role", role), el("label", { class: "field" }, "Access length", len)),
+        el("div", { class: "form-grid" }, el("label", { class: "field" }, "Role", role), el("label", { class: "field" }, "Access length", len), fe.node),
         el("div", { class: "dlg-actions" }, el("span", { style: { flex: 1 } }), el("button", { type: "button", class: "btn", onclick: close }, "Cancel"),
           el("button", { type: "submit", class: "btn primary" }, "Approve")));
     });
@@ -172,10 +205,12 @@ export function mount(host, ctx) {
       const quick = n => el("button", { type: "button", class: "btn small", disabled: me, onclick: () => { never.checked = false; until.disabled = false;
         const base = until.value && until.value > isoDay() ? until.value : isoDay(); until.value = addDays(base, n); } }, "+" + (n >= 365 ? "1 year" : n + " days"));
       const notes = el("textarea", { class: "input", rows: 3 }); notes.value = u.notes || "";
+      const fe = featureEditor(u.features, { disabled: u.role === "admin", note: u.role === "admin" ? "Admins always have every feature. Change the role to User to restrict features." : null });
       const msg = el("div", { class: "hint err" });
       return el("form", { class: "dlg", onsubmit: async e => {
           e.preventDefault();
           const p = { full_name: name.value.trim(), notes: notes.value.trim() };
+          if (u.role !== "admin") p.features = fe.value();
           if (!me) { p.role = role.value; p.status = status.value; p.expires_at = never.checked ? null : (until.value ? new Date(until.value + "T23:59:59").toISOString() : null); }
           try { await rpc("admin_update_user", { p_id: u.id, p }); close(); toast("Saved " + u.email); build(); } catch (err) { msg.textContent = errText(err); }
         } },
@@ -186,8 +221,26 @@ export function mount(host, ctx) {
           el("label", { class: "field" }, "Status", status),
           el("div", { class: "field" }, "Access", el("label", { class: "toggle" }, never, "Never expires"),
             el("div", { class: "controls" }, until, quick(7), quick(30), quick(365))),
+          fe.node,
           el("label", { class: "field full" }, "Admin notes (only admins see these)", notes)),
         msg,
+        el("div", { class: "dlg-actions" }, el("span", { style: { flex: 1 } }), el("button", { type: "button", class: "btn", onclick: close }, "Cancel"),
+          el("button", { type: "submit", class: "btn primary" }, "Save")));
+    });
+  }
+  function editAccess(u) {
+    openDialog(close => {
+      const fe = featureEditor(u.features);
+      const msg = el("div", { class: "hint err" });
+      return el("form", { class: "dlg", onsubmit: async e => {
+          e.preventDefault();
+          try { await rpc("admin_update_user", { p_id: u.id, p: { features: fe.value() } }); close(); toast("Feature access saved for " + u.email); build(); }
+          catch (err) { msg.textContent = errText(err); }
+        } },
+        el("h2", {}, "Feature access: " + u.email),
+        el("p", { class: "sub" }, "Locked features show a 🔒 tab that can't be opened. Hidden features don't appear at all. ",
+          "The database blocks the data too, so this can't be bypassed. Changes apply the next time the user loads the page."),
+        el("div", { class: "form-grid" }, fe.node), msg,
         el("div", { class: "dlg-actions" }, el("span", { style: { flex: 1 } }), el("button", { type: "button", class: "btn", onclick: close }, "Cancel"),
           el("button", { type: "submit", class: "btn primary" }, "Save")));
     });
@@ -224,7 +277,8 @@ export function mount(host, ctx) {
 
   // ---------------- Invites ----------------
   async function invitesView(body) {
-    const invites = (await rpc("admin_list_invites")) || [];
+    const [invites, st] = await Promise.all([rpc("admin_list_invites").then(r => r || []), rpc("admin_get_settings")]);
+    const fe = featureEditor(st?.default_features, { note: "Applies to these invites (admins always get every feature). The default comes from Settings." });
     const link = email => location.origin + location.pathname + "#signup?email=" + encodeURIComponent(email);
     const emails = el("textarea", { class: "input", rows: 3, placeholder: "name@company.com, another@gmail.com" });
     const role = el("select", {}, el("option", { value: "user" }, "User"), el("option", { value: "admin" }, "Admin"));
@@ -233,6 +287,7 @@ export function mount(host, ctx) {
     const out = el("div");
     const tb = el("tbody", {}, ...invites.map(i => el("tr", {},
       el("td", {}, el("b", {}, i.email)), el("td", {}, i.role === "admin" ? el("span", { class: "badge blue" }, "Admin") : "User"),
+      el("td", {}, accessBadges(i.features, i.role === "admin")),
       el("td", { class: "num" }, i.expires_at ? shortDate(i.expires_at) : el("span", { class: "muted" }, "never")),
       el("td", { class: "muted" }, i.note || ""), el("td", { class: "muted" }, ago(i.created_at)),
       el("td", {}, el("div", { class: "row-actions" },
@@ -250,7 +305,7 @@ export function mount(host, ctx) {
               const exp = len.value ? new Date(Date.now() + len.value * 86400e3).toISOString() : null;
               const results = [];
               for (const em of list) {
-                try { await rpc("admin_invite", { p_email: em, p_role: role.value, p_expires_at: exp, p_note: note.value.trim() || null }); results.push([em, true]); }
+                try { await rpc("admin_invite", { p_email: em, p_role: role.value, p_expires_at: exp, p_note: note.value.trim() || null, p_features: fe.value() }); results.push([em, true]); }
                 catch (err) { results.push([em, false, errText(err)]); }
               }
               const ok = results.filter(r => r[1]).length;
@@ -261,7 +316,7 @@ export function mount(host, ctx) {
             }, style: { display: "grid", gap: "10px" } },
             el("label", { class: "field" }, "Email addresses (one or many)", emails),
             el("div", { class: "form-grid" }, el("label", { class: "field" }, "Role", role), el("label", { class: "field" }, "Access length", len),
-              el("label", { class: "field full" }, "Note (optional)", note)),
+              el("label", { class: "field full" }, "Note (optional)", note), fe.node),
             el("div", { "data-out": "" }),
             el("div", {}, el("button", { class: "btn primary", type: "submit" }, "Send invites")))),
         el("section", { class: "card" },
@@ -270,11 +325,12 @@ export function mount(host, ctx) {
             el("li", {}, el("b", {}, "Invited"), ": create an account with the invited email → instant access."),
             el("li", {}, el("b", {}, "Not invited"), ": " + (ctx.settings?.allow_requests === false ? "sign-up is refused (invite-only mode)." : "the account waits as Pending until you approve it in Users.")),
             el("li", {}, "Turn invite-only mode on or off in ", el("button", { class: "linkbtn", onclick: () => { S.sub = "settings"; save(); build(); } }, "Settings"), "."),
-            el("li", {}, "Disable or set an end date for anyone at any time. Blocked users lose access to all data immediately.")))),
+            el("li", {}, "Disable or set an end date for anyone at any time. Blocked users lose access to all data immediately."),
+            el("li", {}, el("b", {}, "Feature access"), ": lock or hide Niche Finder, Leads, Research or Daily Files per person (Users → Access).")))),
       el("section", { class: "card", style: { marginTop: "12px" } },
         el("div", { class: "card-head" }, el("h2", {}, "Open invites"), el("span", { class: "muted" }, fmt(invites.length))),
         invites.length ? el("div", { class: "tbl-wrap" }, el("table", { class: "data" },
-          el("thead", {}, el("tr", {}, ...["Email", "Role", "Access until", "Note", "Invited", ""].map(h => el("th", {}, h)))), tb)) : el("div", { class: "empty" }, "No open invites. Used invites disappear from this list.")));
+          el("thead", {}, el("tr", {}, ...["Email", "Role", "Features", "Access until", "Note", "Invited", ""].map(h => el("th", {}, h)))), tb)) : el("div", { class: "empty" }, "No open invites. Used invites disappear from this list.")));
   }
 
   // ---------------- Activity ----------------
@@ -349,12 +405,13 @@ export function mount(host, ctx) {
     const title = el("input", { type: "text", value: s.site_title, maxlength: 60 });
     const allow = el("input", { type: "checkbox", checked: s.allow_requests });
     const exp = el("input", { type: "number", min: 1, value: s.default_expiry_days ?? "", placeholder: "never", style: { width: "110px" } });
+    const fe = featureEditor(s.default_features, { note: "Used for new access requests and pre-filled in the invite form. Existing users keep their own settings." });
     const msg = el("div", { class: "hint" });
     body.replaceChildren(el("div", { class: "grid-2" },
       el("section", { class: "card" }, el("div", { class: "card-head" }, el("h2", {}, "Settings")),
         el("form", { style: { display: "grid", gap: "14px" }, onsubmit: async e => {
             e.preventDefault();
-            try { await rpc("admin_update_settings", { p: { site_title: title.value.trim(), allow_requests: allow.checked, default_expiry_days: exp.value ? String(+exp.value) : "" } });
+            try { await rpc("admin_update_settings", { p: { site_title: title.value.trim(), allow_requests: allow.checked, default_expiry_days: exp.value ? String(+exp.value) : "", default_features: fe.value() } });
               msg.className = "hint"; msg.textContent = "Saved. Reload the page to see a new title."; toast("Settings saved"); }
             catch (err) { msg.className = "hint err"; msg.textContent = errText(err); }
           } },
@@ -363,6 +420,7 @@ export function mount(host, ctx) {
             el("label", { class: "toggle" }, allow, "Allow access requests (people who aren't invited can sign up and wait for approval)"),
             el("div", { class: "hint", style: { margin: 0 } }, "Turn this off for invite-only: sign-ups from emails you didn't invite are refused.")),
           el("label", { class: "field" }, "Default access length for approved requests (days, empty = never expires)", exp),
+          el("div", { class: "form-grid" }, fe.node),
           el("div", { class: "field" }, "Owner (always admin, can't be removed)", el("code", {}, s.owner_email || "not set")),
           msg, el("div", {}, el("button", { class: "btn primary", type: "submit" }, "Save settings")))),
       el("section", { class: "card" }, el("div", { class: "card-head" }, el("h2", {}, "Security checklist")),

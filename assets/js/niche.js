@@ -91,6 +91,11 @@ export function mount(host, ctx) {
 
   // seeds the daily job hasn't processed yet are searched here in the browser
   async function scan(dates, token) {
+    // the browser search reads the original daily files, which need Daily Files access
+    if (ctx.access?.("daily") !== "on") {
+      $("#nf-progress", host).replaceChildren(el("div", { class: "hint" }, "New seed keywords are searched by the next daily run (within about 3 hours). Their matches appear here after that."));
+      return;
+    }
     const todo = seeds.filter(s => scanIds.has(s.nid));
     const scanDates = dates.slice(-SCAN_MAX_DAYS).filter(d => todo.some(s => !scanHits.has(d + "|" + s.nid + "|" + seedSig(s))));
     if (!scanDates.length) return;

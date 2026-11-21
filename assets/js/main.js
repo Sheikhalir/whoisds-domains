@@ -51,7 +51,11 @@ async function route(session) {
 
 async function buildApp(profile) {
   root.replaceChildren(el("div", { class: "boot" }, "Loading your dashboard…"));
-  const ctx = { profile, isAdmin: profile.role === "admin", settings, meta: new Map(), index: null, indexError: null, cfg: { niches: [], locations: [] } };
+  const isAdmin = profile.role === "admin";
+  // feature access set by the admin (Admin → Users → Edit): "on" | "locked" (tab shown with a lock) | "hidden" (no tab).
+  // The database enforces the same rules (has_feature), so this only decides what to show.
+  const access = id => id === "admin" ? (isAdmin ? "on" : "hidden") : isAdmin ? "on" : ({ hidden: "hidden", locked: "locked" }[profile.features?.[id]] || "on");
+  const ctx = { profile, isAdmin, access, settings, meta: new Map(), index: null, indexError: null, cfg: { niches: [], locations: [] } };
   const [cfg, index] = await Promise.all([
     fetch("niches.json?t=" + Date.now()).then(r => r.json()).catch(() => ({ niches: [], locations: [] })),
     storageFile("index.json").catch(e => { ctx.indexError = e; return null; }),
@@ -65,11 +69,13 @@ async function buildApp(profile) {
   ctx.index = index;
   ctx.days = (index?.days || []).slice().sort((a, b) => a.date.localeCompare(b.date));
 
-  const tabs = TABS.filter(([id]) => id !== "admin" || ctx.isAdmin);
+  const tabs = TABS.filter(([id]) => access(id) !== "hidden");
   const panes = {}, mods = {};
   let current = null;
   const nav = el("nav", { class: "tabs", role: "tablist" }, ...tabs.map(([id, label]) =>
-    el("button", { role: "tab", "data-tab": id, "aria-selected": "false", onclick: () => show(id) }, label)));
+    el("button", { role: "tab", "data-tab": id, "aria-selected": "false", class: access(id) === "locked" ? "locked" : null,
+      title: access(id) === "locked" ? "Your admin has locked this feature for your account" : null, onclick: () => show(id) },
+      access(id) === "locked" ? "🔒 " : null, label)));
   const initials = (profile.full_name || profile.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(s => s[0].toUpperCase()).join("");
   const menuList = el("div", { class: "menu-list", hidden: true },
     el("div", { class: "who" }, el("b", {}, profile.full_name || profile.email), el("br"), profile.email, el("br"),
@@ -89,14 +95,24 @@ async function buildApp(profile) {
       el("div", { class: "brand" }, el("div", { class: "logo" }, "DR"),
         el("div", {}, el("h1", {}, settings?.site_title || "Domain Radar"), el("div", { class: "sub" }, "New domains → niches, leads and research"))),
       el("div", { class: "usermenu" }, updated, menu)),
-    nav,
+    tabs.length ? nav : el("div", { class: "card msg" }, el("b", {}, "No features are enabled for your account yet."), el("br"),
+      "Ask your admin to give you access to Niche Finder, Leads, Research or Daily Files."),
     ...tabs.map(([id]) => (panes[id] = el("div", { "data-pane": id, hidden: true })))));
 
   async function show(id, opts) {
-    if (!panes[id]) id = tabs[0][0];
+    if (!tabs.length) return;
+    if (!panes[id]) id = (tabs.find(([t]) => access(t) === "on") || tabs[0])[0];
     current = id;
     $$(".tabs button", root).forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === id)));
     Object.entries(panes).forEach(([k, p]) => p.hidden = k !== id);
+    if (access(id) === "locked") {
+      const label = TABS.find(t => t[0] === id)[1];
+      panes[id].replaceChildren(el("section", { class: "card locked-pane" }, el("div", { class: "lock-icon", "aria-hidden": "true" }, "🔒"),
+        el("h2", {}, label + " is locked for your account"),
+        el("p", { class: "sub" }, "Your admin hasn't given you access to this feature. Ask them to unlock it in Admin → Users.")));
+      if (location.hash.slice(1).split("/")[0] !== id) history.replaceState(null, "", "#" + id);
+      return;
+    }
     if (!mods[id]) {
       panes[id].replaceChildren(el("div", { class: "boot" }, "Loading…"));
       try {
@@ -116,7 +132,7 @@ async function buildApp(profile) {
   ctx.goto = show;
   window.addEventListener("resize", debounce(() => mods[current]?.redraw?.(), 120));
   const start = location.hash.slice(1).split("/")[0];
-  show(tabs.some(t => t[0] === start) ? start : "niche");
+  show(tabs.some(t => t[0] === start) ? start : null);
 }
 
 function changePassword() {
