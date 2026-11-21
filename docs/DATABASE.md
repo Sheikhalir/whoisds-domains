@@ -6,19 +6,24 @@ Everything is created by `supabase/schema.sql` (idempotent: re-run it after upda
 
 | Table | Rows | Written by | Read by |
 |---|---|---|---|
-| `app_settings` | 1 (`id = 1`): `owner_email`, `site_title`, `allow_requests`, `default_expiry_days` | admin functions | admins (public subset via `get_public_settings`) |
-| `profiles` | one per auth user: `email, full_name, role (admin/user), status (pending/active/disabled), expires_at, must_change_password, notes, approved_at/by, last_seen_at, last_login_at` | trigger + functions | own row; admins all |
-| `invites` | `email (pk), role, expires_at, note, invited_by` | admin functions | admins |
+| `app_settings` | 1 (`id = 1`): `owner_email`, `site_title`, `allow_requests`, `default_expiry_days`, `default_features` | admin functions | admins (public subset via `get_public_settings`) |
+| `profiles` | one per auth user: `email, full_name, role (admin/user), status (pending/active/disabled), expires_at, must_change_password, notes, approved_at/by, last_seen_at, last_login_at, features` | trigger + functions | own row; admins all |
+| `invites` | `email (pk), role, expires_at, note, invited_by, features` | admin functions | admins |
 | `activity` | `user_id, email, action, detail jsonb, at` | `log_event()` + functions | admins |
 | `seeds` | per user: `name, keywords[], exclude[], sig` (trigger) `, processed_sig, processed_at` | `save_my_seeds()`; job sets `processed_sig` | owner |
 | `seed_hits` | `(seed_id, date, domain)`, `kw, loc` | job | owner of the seed |
 | `user_leads` | `(user_id, domain)`: `fav, discarded, status (new/contacted/replied/meeting/won/lost), note, follow_up, found_date, niche_ids, kws, loc` | `set_my_leads()` | owner |
-| `leads` | one per domain: found info, DNS/site/contact results, RDAP owner, `score, score_reasons, checks, stage, last_checked_at, next_check_at, history` | job | active users |
-| `gaps` | `domain (pk), niche_id, location, us_state, term, pattern, demand, status (available/taken/unknown), checked_at` | job | active users |
-| `geo_daily` | `(date, niche_id, loc)`, `us_state, n` | job | active users |
+| `leads` | one per domain: found info, DNS/site/contact results, RDAP owner, `score, score_reasons, checks, stage, last_checked_at, next_check_at, history` | job | active users with Leads |
+| `gaps` | `domain (pk), niche_id, location, us_state, term, pattern, demand, status (available/taken/unknown), checked_at` | job | active users with Leads |
+| `geo_daily` | `(date, niche_id, loc)`, `us_state, n` | job | active users with Research |
 | `job_runs` | `started_at, finished_at, status (running/ok/error), summary jsonb, error` | job | admins |
 
-Storage bucket **`daily`** (private): `zip/DATE.zip`, `niches/DATE.json`, `index.json`, readable only by active users.
+Storage bucket **`daily`** (private): `zip/DATE.zip` (needs Daily Files), `niches/DATE.json` (needs Niche Finder), `index.json`, readable only by active users.
+
+**Feature access.** `features` / `default_features` are `{"niche"|"leads"|"research"|"daily": "hidden"|"locked"}`; a missing key means allowed
+(`clean_features()` drops anything else). `has_feature(f)` = active and (admin or `f` not restricted). Policies call it as
+`(select public.has_feature(...))` so it runs once per query. `search_leads` raises `NO_ACCESS` without Leads; `my_seed_hits` needs Niche Finder,
+`seed_daily_counts` needs Research. Sign-up copies `invites.features` (invited) or `default_features` (requests).
 
 ## Functions used by the dashboard
 
@@ -38,10 +43,10 @@ Storage bucket **`daily`** (private): `zip/DATE.zip`, `niches/DATE.json`, `index
 | `get_gaps(p jsonb)` | active | `p`: `niches[], us_state, status (available default / all), min_demand, limit ≤ 1000` |
 | `geo_summary(p_from, p_to, p_niches[])` | active | `(loc, us_state, niche_id, n)` sums |
 | `admin_list_users()` | admin | profiles + 30-day counts (events, logins, exports) + favorites / pipeline / seeds |
-| `admin_update_user(p_id, p jsonb)` | admin | `role, status, expires_at (null = never), notes, full_name`. Approving a pending user applies `default_expiry_days` unless `expires_at` is given. |
+| `admin_update_user(p_id, p jsonb)` | admin | `role, status, expires_at (null = never), notes, full_name, features`. Approving a pending user applies `default_expiry_days` unless `expires_at` is given. |
 | `admin_set_password(p_id, p_password)` | admin | bcrypt into `auth.users`; sets `must_change_password` |
 | `admin_delete_user(p_id)` | admin | deletes from `auth.users` (cascades) |
-| `admin_invite(p_email, p_role, p_expires_at, p_note)` / `admin_list_invites()` / `admin_revoke_invite(p_email)` | admin | invites |
+| `admin_invite(p_email, p_role, p_expires_at, p_note, p_features)` / `admin_list_invites()` / `admin_revoke_invite(p_email)` | admin | invites |
 | `admin_get_settings()` / `admin_update_settings(p jsonb)` | admin | settings |
 | `admin_activity(p jsonb)` | admin | `p`: `user_id, action, before, limit ≤ 500` |
 | `admin_stats(p_days)` | admin | users, active 1/7/30 d, `by_day`, actions, top users, tabs, niches, exports, data sizes, last job |

@@ -18,7 +18,8 @@ sign-ins / actions / exports in 30 days, favorites, pipeline size and seed group
 
 Actions:
 - **Approve / Decline** (pending requests).
-- **Edit**: name, role (User / Admin), status (Active / Pending / Disabled), **access end date** (never, or a date; quick +7 / +30 / +1 year), admin notes.
+- **Edit**: name, role (User / Admin), status (Active / Pending / Disabled), **access end date** (never, or a date; quick +7 / +30 / +1 year), feature access, admin notes.
+- **Access**: choose per feature (Niche Finder, Leads, Research, Daily Files) whether the person may use it. See *Feature access* below.
 - **Disable / Enable**: blocks or restores access instantly. Their data is kept.
 - **Password**: sets a **temporary password** (auto-generated, or type one). They must choose their own at the next sign-in.
   **Copy message** gives you a ready-to-send text with the link, email and password.
@@ -28,6 +29,24 @@ Actions:
 
 Expired, disabled and pending accounts can't read **any** data. The database enforces this, so it can't be bypassed from the browser.
 You can't remove your own admin access, and there must always be at least one active admin.
+
+## Feature access
+
+Each feature can be set per user to:
+
+| Setting | What the user sees | Data |
+|---|---|---|
+| **Allowed** | the tab works normally | readable |
+| **Locked** | the tab shows 🔒 and a "locked for your account" message | blocked |
+| **Hidden** | no tab at all | blocked |
+
+- Set it in **Users → Access** (or **Edit**), when **approving** a request, or for new people in **Invites** (applies when they sign up).
+- **Settings → Feature access** is the default for new access requests and is pre-filled in the invite form. Existing users keep their own settings.
+- The database enforces it, so a locked or hidden feature can't be opened from the browser console either:
+  Leads also covers Gap Finder, Daily Files covers the original zip files, Niche Finder covers the daily niche files and seed matches,
+  Research covers location stats and seed momentum.
+- Admins always have every feature. Changes take effect the next time the user loads the page.
+- Without Daily Files, Niche Finder doesn't search *new* seed keywords in the browser; their matches appear after the next daily run (≤ 3 hours).
 
 ## Overview (analytics)
 
