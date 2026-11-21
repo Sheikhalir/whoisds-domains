@@ -54,6 +54,12 @@ create table if not exists public.invites (
   created_at timestamptz not null default now()
 );
 
+-- feature access per user (v3.1): {"niche"|"leads"|"research"|"daily": "hidden"|"locked"}. A missing key = allowed.
+-- "hidden" removes the tab, "locked" shows it with a lock. Both are enforced by the database. Admins always have everything.
+alter table public.profiles     add column if not exists features         jsonb not null default '{}'::jsonb;
+alter table public.invites      add column if not exists features         jsonb not null default '{}'::jsonb;
+alter table public.app_settings add column if not exists default_features jsonb not null default '{}'::jsonb;  -- for approved requests
+
 create table if not exists public.activity (
   id      bigint generated always as identity primary key,
   user_id uuid references public.profiles(id) on delete set null,
@@ -204,6 +210,22 @@ language sql stable security definer set search_path = public as $$
     where p.id = auth.uid() and p.status = 'active' and p.role = 'admin');
 $$;
 
+-- keeps only known features with a known restriction
+create or replace function public.clean_features(p jsonb) returns jsonb
+language sql immutable as $$
+  select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb)
+  from jsonb_each_text(case when jsonb_typeof(p) = 'object' then p else '{}'::jsonb end) e
+  where e.key in ('niche', 'leads', 'research', 'daily') and e.value in ('hidden', 'locked');
+$$;
+
+-- active user who may use this feature (niche | leads | research | daily). Admins may use everything.
+-- Policies call it as (select public.has_feature(...)) so Postgres evaluates it once per query, not once per row.
+create or replace function public.has_feature(p_feature text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_active_user() and (public.is_admin() or not exists (
+    select 1 from public.profiles p where p.id = auth.uid() and coalesce(p.features, '{}'::jsonb) ? p_feature));
+$$;
+
 create or replace function public.seed_sig(p_keywords text[], p_exclude text[]) returns text
 language sql immutable as $$
   select coalesce((select string_agg(k, ',' order by k collate "C") from unnest(p_keywords) k), '')
@@ -238,14 +260,15 @@ begin
     on conflict (id) do nothing;
     v_status := 'owner';
   elsif inv.email is not null then
-    insert into public.profiles (id, email, full_name, role, status, expires_at, approved_at, approved_by)
-    values (new.id, v_email, new.raw_user_meta_data ->> 'full_name', inv.role, 'active', inv.expires_at, now(), inv.invited_by)
+    insert into public.profiles (id, email, full_name, role, status, expires_at, approved_at, approved_by, features)
+    values (new.id, v_email, new.raw_user_meta_data ->> 'full_name', inv.role, 'active', inv.expires_at, now(), inv.invited_by,
+            public.clean_features(inv.features))
     on conflict (id) do nothing;
     delete from public.invites where email = v_email;
     v_status := 'invited';
   elsif coalesce(s.allow_requests, true) then
-    insert into public.profiles (id, email, full_name, role, status)
-    values (new.id, v_email, new.raw_user_meta_data ->> 'full_name', 'user', 'pending')
+    insert into public.profiles (id, email, full_name, role, status, features)
+    values (new.id, v_email, new.raw_user_meta_data ->> 'full_name', 'user', 'pending', public.clean_features(s.default_features))
     on conflict (id) do nothing;
     v_status := 'requested';
   else
@@ -316,11 +339,11 @@ create policy "own lists" on public.user_leads for all to authenticated
   with check (user_id = auth.uid() and public.is_active_user());
 
 drop policy if exists "active users read leads" on public.leads;
-create policy "active users read leads" on public.leads for select to authenticated using (public.is_active_user());
+create policy "active users read leads" on public.leads for select to authenticated using ((select public.has_feature('leads')));
 drop policy if exists "active users read gaps" on public.gaps;
-create policy "active users read gaps" on public.gaps for select to authenticated using (public.is_active_user());
+create policy "active users read gaps" on public.gaps for select to authenticated using ((select public.has_feature('leads')));
 drop policy if exists "active users read geo" on public.geo_daily;
-create policy "active users read geo" on public.geo_daily for select to authenticated using (public.is_active_user());
+create policy "active users read geo" on public.geo_daily for select to authenticated using ((select public.has_feature('research')));
 drop policy if exists "admin reads job runs" on public.job_runs;
 create policy "admin reads job runs" on public.job_runs for select to authenticated using (public.is_admin());
 
@@ -346,7 +369,10 @@ on conflict (id) do update set public = false;
 
 drop policy if exists "active users read daily files" on storage.objects;
 create policy "active users read daily files" on storage.objects for select to authenticated
-  using (bucket_id = 'daily' and public.is_active_user());
+  using (bucket_id = 'daily' and (select public.is_active_user())
+         and case when name like 'zip/%' then (select public.has_feature('daily'))       -- original WhoisDS files
+                  when name like 'niches/%' then (select public.has_feature('niche'))    -- niche matches per day
+                  else true end);                                              -- index.json (day list)
 
 -- =====================================================================
 -- Functions used by the dashboard
@@ -434,13 +460,14 @@ create or replace function public.my_seed_hits(p_from date, p_to date) returns t
 language sql stable security invoker set search_path = public as $$
   select h.seed_id, h.date, h.domain, h.kw, h.loc
   from public.seed_hits h join public.seeds s on s.id = h.seed_id
-  where s.user_id = auth.uid() and h.date between p_from and p_to and h.seed_id = s.id and s.processed_sig = s.sig;
+  where s.user_id = auth.uid() and h.date between p_from and p_to and h.seed_id = s.id and s.processed_sig = s.sig
+    and (select public.has_feature('niche'));
 $$;
 
 create or replace function public.seed_daily_counts(p_from date, p_to date) returns table (seed_id uuid, date date, n bigint)
 language sql stable security invoker set search_path = public as $$
   select h.seed_id, h.date, count(*) from public.seed_hits h join public.seeds s on s.id = h.seed_id
-  where s.user_id = auth.uid() and h.date between p_from and p_to group by 1, 2;
+  where s.user_id = auth.uid() and h.date between p_from and p_to and (select public.has_feature('research')) group by 1, 2;
 $$;
 
 -- ---- favorites / discards / CRM ----
@@ -507,6 +534,7 @@ declare
   result jsonb;
 begin
   if not public.is_active_user() then raise exception 'NOT_ACTIVE'; end if;
+  if not public.has_feature('leads') then raise exception 'NO_ACCESS: your account has no access to Leads'; end if;
   with base as (
     select coalesce(l.domain, u.domain) as domain,
            coalesce(l.found_date, u.found_date) as found_date,
@@ -606,7 +634,7 @@ begin
     from public.profiles p) x);
 end $$;
 
--- p: any of {role, status, expires_at (null = never), notes, full_name}
+-- p: any of {role, status, expires_at (null = never), notes, full_name, features}
 create or replace function public.admin_update_user(p_id uuid, p jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare old public.profiles; admins int;
@@ -627,6 +655,7 @@ begin
     expires_at  = case when p ? 'expires_at' then nullif(p ->> 'expires_at', '')::timestamptz else expires_at end,
     notes       = case when p ? 'notes' then left(nullif(p ->> 'notes', ''), 2000) else notes end,
     full_name   = case when p ? 'full_name' then left(nullif(p ->> 'full_name', ''), 120) else full_name end,
+    features    = case when p ? 'features' then public.clean_features(p -> 'features') else features end,
     approved_at = case when p ->> 'status' = 'active' and old.status = 'pending' then now() else approved_at end,
     approved_by = case when p ->> 'status' = 'active' and old.status = 'pending' then auth.uid() else approved_by end
   where id = p_id;
@@ -666,7 +695,9 @@ begin
   perform public.log_event('admin_delete_user', jsonb_build_object('user', v_email));
 end $$;
 
-create or replace function public.admin_invite(p_email text, p_role text default 'user', p_expires_at timestamptz default null, p_note text default null) returns jsonb
+drop function if exists public.admin_invite(text, text, timestamptz, text);   -- replaced by the version with p_features
+create or replace function public.admin_invite(p_email text, p_role text default 'user', p_expires_at timestamptz default null, p_note text default null,
+                                               p_features jsonb default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v_email text := lower(trim(p_email)); r public.invites;
 begin
@@ -675,9 +706,10 @@ begin
   if exists (select 1 from public.profiles where email = v_email) then
     raise exception 'ALREADY_USER: % already has an account - change it under Users', v_email;
   end if;
-  insert into public.invites (email, role, expires_at, note, invited_by)
-  values (v_email, coalesce(p_role, 'user'), p_expires_at, nullif(p_note, ''), auth.uid())
-  on conflict (email) do update set role = excluded.role, expires_at = excluded.expires_at, note = excluded.note, invited_by = excluded.invited_by, created_at = now()
+  insert into public.invites (email, role, expires_at, note, invited_by, features)
+  values (v_email, coalesce(p_role, 'user'), p_expires_at, nullif(p_note, ''), auth.uid(), public.clean_features(p_features))
+  on conflict (email) do update set role = excluded.role, expires_at = excluded.expires_at, note = excluded.note, invited_by = excluded.invited_by,
+                                    features = excluded.features, created_at = now()
   returning * into r;
   perform public.log_event('admin_invite', jsonb_build_object('email', v_email, 'role', r.role));
   return to_jsonb(r);
@@ -713,6 +745,7 @@ begin
     site_title          = case when p ? 'site_title' then coalesce(nullif(left(p ->> 'site_title', 60), ''), site_title) else site_title end,
     allow_requests      = case when p ? 'allow_requests' then (p ->> 'allow_requests')::boolean else allow_requests end,
     default_expiry_days = case when p ? 'default_expiry_days' then nullif(p ->> 'default_expiry_days', '')::int else default_expiry_days end,
+    default_features    = case when p ? 'default_features' then public.clean_features(p -> 'default_features') else default_features end,
     updated_at = now()
   where id = 1;
   perform public.log_event('admin_update_settings', p);
