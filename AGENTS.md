@@ -26,7 +26,8 @@ Static dashboard (GitHub Pages, `index.html` + `assets/js/*.js` ES modules, no b
 | login / routing / tabs | `assets/js/main.js`, `assets/js/auth-ui.js` |
 | Supabase calls, lists, seeds | `assets/js/api.js` |
 | helpers, charts, dialogs | `assets/js/core.js` |
-| tabs | `assets/js/niche.js`, `leads.js`, `research.js`, `daily.js`, `admin.js` |
+| tabs | `assets/js/niche.js`, `leads.js`, `research.js`, `daily.js`, `admin.js`, `guide.js` (Guide tab + guided tours) |
+| guided tours | `guide.js → STEPS` (selectors per tab: update them when you rename element ids) |
 | niches, keywords, lead settings | `niches.json` |
 | job | `scripts/run_daily.py` (+ `classify.py`, `leads.py`, `rdap.py`, `gaps.py`, `supa.py`, `whoisds_downloader.py`) |
 | database | `supabase/schema.sql` |

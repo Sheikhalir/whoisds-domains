@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2: onboarding
+- **Welcome tour** on a user's first sign-in: a spotlight walkthrough of their tabs (only the features they can use), the menu and the Guide.
+  Shown once per account (`profiles.tour_seen_at`), replay from the menu → Quick tour.
+- **Guide tab** for everyone: quick start in 4 steps, a card per feature (what it's for, how to use it, tip, *Show me around* tour),
+  admin section, glossary and FAQ.
+- **? help button** on every page: tour this page, quick tour, open the Guide. Tour starts and skips appear in the Activity log.
+- Tabs scroll sideways on phones instead of running off the screen.
+
 ## 3.1: feature access per user
 - **Admin → Users → Access**: allow, lock (🔒 tab with a message) or hide Niche Finder, Leads, Research and Daily Files for each user.
   Also in Edit, Approve, Invites (applied at sign-up) and a default for new requests in Settings. Users table and CSV show each user's access.
