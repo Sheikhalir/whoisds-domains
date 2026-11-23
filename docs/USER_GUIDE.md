@@ -5,7 +5,10 @@ Sign in at your dashboard address. If you don't have an account, click **Create 
 - Others wait for the admin's approval ("Waiting for approval" screen → click **Check again** later).
 - Forgot your password? Ask the admin for a temporary password. You'll choose your own at the next sign-in.
 
-Your menu (top right) has **Change my name**, **Change password**, **Sign out**.
+Your menu (top right) has **Quick tour**, **Guide**, **Change my name**, **Change password**, **Sign out**.
+
+**New here?** A 1-minute tour starts the first time you sign in. Skip it with *Skip tour* or Esc, and replay it any time.
+The **Guide** tab explains every tool with a *Show me around* tour each, and the round **?** button (bottom right) offers a tour of the page you're on.
 Favorites, discards, notes and seed keywords belong to **your account**. They follow you to any device, and other users can't see them.
 
 ---

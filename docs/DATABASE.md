@@ -7,7 +7,7 @@ Everything is created by `supabase/schema.sql` (idempotent: re-run it after upda
 | Table | Rows | Written by | Read by |
 |---|---|---|---|
 | `app_settings` | 1 (`id = 1`): `owner_email`, `site_title`, `allow_requests`, `default_expiry_days`, `default_features` | admin functions | admins (public subset via `get_public_settings`) |
-| `profiles` | one per auth user: `email, full_name, role (admin/user), status (pending/active/disabled), expires_at, must_change_password, notes, approved_at/by, last_seen_at, last_login_at, features` | trigger + functions | own row; admins all |
+| `profiles` | one per auth user: `email, full_name, role (admin/user), status (pending/active/disabled), expires_at, must_change_password, notes, approved_at/by, last_seen_at, last_login_at, features, tour_seen_at` | trigger + functions | own row; admins all |
 | `invites` | `email (pk), role, expires_at, note, invited_by, features` | admin functions | admins |
 | `activity` | `user_id, email, action, detail jsonb, at` | `log_event()` + functions | admins |
 | `seeds` | per user: `name, keywords[], exclude[], sig` (trigger) `, processed_sig, processed_at` | `save_my_seeds()`; job sets `processed_sig` | owner |
@@ -33,6 +33,7 @@ Storage bucket **`daily`** (private): `zip/DATE.zip` (needs Daily Files), `niche
 | `my_profile()` | logged in | own profile + `is_active`, `is_expired` |
 | `update_my_profile(p_full_name)` | logged in | change own name |
 | `password_changed()` | logged in | clears `must_change_password` |
+| `mark_tour_seen()` | logged in | sets `profiles.tour_seen_at` (the welcome tour isn't started again) |
 | `log_event(p_action, p_detail)` | logged in | analytics event; updates `last_seen_at` (+ `last_login_at` for `login`) |
 | `list_my_seeds()` / `save_my_seeds(p jsonb)` | active | read / replace own seed groups `[{id?, name, keywords[], exclude[]}]` (keywords cleaned to `[a-z0-9]`, ≥ 3 chars) |
 | `my_seed_hits(p_from, p_to)` | active | own seed matches (only for seeds processed with their current keywords) |

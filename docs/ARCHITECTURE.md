@@ -84,6 +84,7 @@ Clamped to 0–100; `score_reasons` stores the text shown in the dashboard. Hot 
 | `api.js` | Supabase client, `rpc()`, `storageFile()` / `dayDomains()` (private Storage + JSZip), `logEvent()`, the `Lists` store (favorites / discards / CRM) and `Seeds` store. |
 | `core.js` | DOM helper `el()`, formatting, charts (`drawBars`, `sparkline`), dialogs, toast, CSV, multi-select, badges, matching rules, US tile-map layout. |
 | `niche.js` · `leads.js` · `research.js` · `daily.js` · `admin.js` | One tab each: `mount(host, ctx) → { show(opts), redraw() }`. |
+| `guide.js` | Guide tab, the spotlight tour engine (`startTour(ctx, name)`, steps in `STEPS`), the ? help button. The welcome tour starts on the first sign-in (`profiles.tour_seen_at` is null) and only covers tabs the user can use. |
 
 UI state per tab is remembered in `localStorage` (`dr_nf`, `dr_leads`, `dr_research`, `dr_admin`). Charts follow one rule set:
 one hue (`--series-1`) for single series, a sequential blue ramp (`--seq-1..5`) for the map, a hover tooltip, and light + dark themes.
