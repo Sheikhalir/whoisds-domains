@@ -35,6 +35,7 @@ def check(name, ok, info=""):
 async def new_page(browser, w=1360, h=1000, dark=False):
     ctx = await browser.new_context(viewport={"width": w, "height": h}, accept_downloads=True, color_scheme="dark" if dark else "light")
     await ctx.grant_permissions(["clipboard-read", "clipboard-write"])
+    await ctx.add_init_script("try { localStorage.setItem('dr_no_tour', '1') } catch (e) {}")   # the welcome tour is tested separately
     pg = await ctx.new_page()
     await pg.route("**/supabase.js", lambda r: r.fulfill(body=SB, content_type="application/javascript"))
     await pg.route("**/jszip.min.js", lambda r: r.fulfill(body=JZ, content_type="application/javascript"))
@@ -74,7 +75,7 @@ async def main():
         adm = await new_page(b)
         await login(adm, A.owner, A.password)
         tabs = await adm.eval_on_selector_all(".tabs button", "bs=>bs.map(b=>b.textContent)")
-        check("admin sees all 5 tabs", tabs == ["Niche Finder", "Leads", "Research", "Daily Files", "Admin"], tabs)
+        check("admin sees all 6 tabs", tabs == ["Niche Finder", "Leads", "Research", "Daily Files", "Guide", "Admin"], tabs)
         await tab(adm, "admin")
         await adm.wait_for_selector("#ad-body .tiles", timeout=20000)
         await adm.wait_for_timeout(600)
