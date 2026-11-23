@@ -59,6 +59,8 @@ create table if not exists public.invites (
 alter table public.profiles     add column if not exists features         jsonb not null default '{}'::jsonb;
 alter table public.invites      add column if not exists features         jsonb not null default '{}'::jsonb;
 alter table public.app_settings add column if not exists default_features jsonb not null default '{}'::jsonb;  -- for approved requests
+-- first-sign-in welcome tour (v3.2): null = not seen yet, so the dashboard starts the tour
+alter table public.profiles     add column if not exists tour_seen_at     timestamptz;
 
 create table if not exists public.activity (
   id      bigint generated always as identity primary key,
@@ -404,6 +406,12 @@ begin
   update public.profiles set must_change_password = false where id = auth.uid();
   insert into public.activity (user_id, email, action) select id, email, 'password_changed' from public.profiles where id = auth.uid();
 end $$;
+
+-- the user finished or skipped the welcome tour (shown once per account, on any device)
+create or replace function public.mark_tour_seen() returns void
+language sql security definer set search_path = public as $$
+  update public.profiles set tour_seen_at = coalesce(tour_seen_at, now()) where id = auth.uid();
+$$;
 
 -- usage analytics: the dashboard records logins, page views, exports, ...
 create or replace function public.log_event(p_action text, p_detail jsonb default '{}'::jsonb) returns void
