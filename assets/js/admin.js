@@ -8,9 +8,9 @@ const ACTIONS = {
   login: "Signed in", view: "Opened a tab", signup: "Created account", niche_select: "Selected niches", export_csv: "Exported CSV", export_zip: "Exported zip",
   export_txt: "Exported .txt", seeds_saved: "Saved seed keywords", lead_open: "Opened a lead", password_changed: "Chose password after reset", password_changed_self: "Changed own password",
   admin_update_user: "Admin: changed a user", admin_set_password: "Admin: set a password", admin_delete_user: "Admin: deleted a user", admin_invite: "Admin: invited",
-  admin_revoke_invite: "Admin: revoked invite", admin_update_settings: "Admin: changed settings"
+  admin_revoke_invite: "Admin: revoked invite", admin_update_settings: "Admin: changed settings", tour_done: "Finished a tour", tour_skipped: "Skipped a tour"
 };
-const TAB_NAMES = { niche: "Niche Finder", leads: "Leads", research: "Research", daily: "Daily Files", admin: "Admin", "leads:leads": "Leads › All leads",
+const TAB_NAMES = { niche: "Niche Finder", leads: "Leads", research: "Research", daily: "Daily Files", admin: "Admin", guide: "Guide", "leads:leads": "Leads › All leads",
   "leads:pipeline": "Leads › Pipeline", "leads:followups": "Leads › Follow-ups", "leads:gaps": "Leads › Gap Finder", "research:momentum": "Research › Momentum", "research:geo": "Research › Geography" };
 const statusOf = u => u.status === "active" && u.is_expired ? "expired" : u.status;
 

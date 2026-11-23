@@ -9,6 +9,7 @@ const TABS = [
   ["leads", "Leads", () => import("./leads.js")],
   ["research", "Research", () => import("./research.js")],
   ["daily", "Daily Files", () => import("./daily.js")],
+  ["guide", "Guide", () => import("./guide.js")],
   ["admin", "Admin", () => import("./admin.js")],
 ];
 const root = $("#app");
@@ -54,7 +55,7 @@ async function buildApp(profile) {
   const isAdmin = profile.role === "admin";
   // feature access set by the admin (Admin → Users → Edit): "on" | "locked" (tab shown with a lock) | "hidden" (no tab).
   // The database enforces the same rules (has_feature), so this only decides what to show.
-  const access = id => id === "admin" ? (isAdmin ? "on" : "hidden") : isAdmin ? "on" : ({ hidden: "hidden", locked: "locked" }[profile.features?.[id]] || "on");
+  const access = id => id === "guide" ? "on" : id === "admin" ? (isAdmin ? "on" : "hidden") : isAdmin ? "on" : ({ hidden: "hidden", locked: "locked" }[profile.features?.[id]] || "on");
   const ctx = { profile, isAdmin, access, settings, meta: new Map(), index: null, indexError: null, cfg: { niches: [], locations: [] } };
   const [cfg, index] = await Promise.all([
     fetch("niches.json?t=" + Date.now()).then(r => r.json()).catch(() => ({ niches: [], locations: [] })),
@@ -81,6 +82,9 @@ async function buildApp(profile) {
     el("div", { class: "who" }, el("b", {}, profile.full_name || profile.email), el("br"), profile.email, el("br"),
       profile.role === "admin" ? "Admin" : "User", profile.expires_at ? " · access until " + new Date(profile.expires_at).toLocaleDateString() : ""),
     el("div", { class: "sep" }),
+    el("button", { onclick: () => { menuList.hidden = true; import("./guide.js").then(g => g.startTour(ctx, "welcome")); } }, "▶ Quick tour"),
+    el("button", { onclick: () => { menuList.hidden = true; show("guide"); } }, "📘 Guide"),
+    el("div", { class: "sep" }),
     el("button", { onclick: () => { menuList.hidden = true; editName(profile); } }, "Change my name"),
     el("button", { onclick: () => { menuList.hidden = true; changePassword(); } }, "Change password"),
     el("div", { class: "sep" }),
@@ -101,7 +105,7 @@ async function buildApp(profile) {
 
   async function show(id, opts) {
     if (!tabs.length) return;
-    if (!panes[id]) id = (tabs.find(([t]) => access(t) === "on") || tabs[0])[0];
+    if (!panes[id]) id = (tabs.find(([t]) => access(t) === "on" && t !== "guide") || tabs.find(([t]) => t === "guide") || tabs[0])[0];
     current = id;
     $$(".tabs button", root).forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === id)));
     Object.entries(panes).forEach(([k, p]) => p.hidden = k !== id);
@@ -132,7 +136,12 @@ async function buildApp(profile) {
   ctx.goto = show;
   window.addEventListener("resize", debounce(() => mods[current]?.redraw?.(), 120));
   const start = location.hash.slice(1).split("/")[0];
-  show(tabs.some(t => t[0] === start) ? start : null);
+  await show(tabs.some(t => t[0] === start) ? start : null);
+  // help button (bottom right) + the welcome tour on a user's first sign-in
+  import("./guide.js").then(g => {
+    root.append(g.helpButton(ctx, () => current));
+    if (g.shouldAutoStart(ctx)) setTimeout(() => g.startTour(ctx, "welcome"), 600);
+  }).catch(e => console.warn("guide", e));
 }
 
 function changePassword() {
